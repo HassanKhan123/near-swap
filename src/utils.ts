@@ -61,6 +61,7 @@ import getConfig, {
 import SpecialWallet from "./SpecialWallet";
 import BigNumber from "bignumber.js";
 import { AccountView } from "near-api-js/lib/providers/provider";
+import { useDepositableBalance } from "./hooks";
 
 const config = getConfig();
 
@@ -146,14 +147,14 @@ export const getUserTokens = async () => {
     //   args: { account_id: ACCOUNT_ID },
     // });
 
-    console.log("tokensIds", tokensIds);
-
     const account = await near.account(ACCOUNT_ID);
 
     let tokensInfo: any = [];
 
+    let unSupportedTokens = ["v2.ref-finance.near"];
+
     let filtered = tokensIds.filter(
-      (tk: string) => tk != "v2.ref-finance.near"
+      (tk: string) => !unSupportedTokens.includes(tk)
     );
     console.log("filtered", filtered);
 
@@ -168,7 +169,6 @@ export const getUserTokens = async () => {
     console.log("tokensInfo", tokensInfo);
 
     return tokensInfo.filter((tk: any) => tk.balance != 0);
-    // return tokensInfo;
   } catch (error) {
     console.log("ee====", error);
   }
@@ -189,7 +189,14 @@ const getTokensMetaData = async (token: string, account: any, mode = "") => {
     let balance = await account.viewFunction(token, "ft_balance_of", {
       account_id: ACCOUNT_ID,
     });
-    console.log("balance", balance, token);
+
+    if (token === WRAP_NEAR_CONTRACT_ID) {
+      getAccountNearBalance(ACCOUNT_ID).then(
+        ({ available }: any) =>
+          (obj.balance = Number(available) / 10 ** tokenInfo.decimals)
+      );
+    }
+
     obj.balance = balance / 10 ** tokenInfo.decimals;
   }
 
@@ -661,31 +668,13 @@ export const executeMultipleTransactions = async (
 ) => {
   try {
     console.log("executeMultipleTransactions", transactions);
-    const provider = new providers.JsonRpcProvider(PROVIDER);
-    const wstransactions: WSTransaction[] = [];
     const keyPair = utils.key_pair.KeyPairEd25519.fromString(PRIVATE_KEY);
     await keyStore.setKey(config.networkId, ACCOUNT_ID, keyPair);
     const near = new Near({ ...config, keyStore });
     const account = await near.account(ACCOUNT_ID);
 
-    const publicKey = keyPair.getPublicKey();
-
     transactions.forEach(async transaction => {
-      // wstransactions.push({
-      //   signerId: wallet.getAccountId()!,
-      //   receiverId: transaction.receiverId,
-
-      // actions:
       transaction.functionCalls.map(async fc => {
-        // return {
-        //   type: "FunctionCall",
-        //   params: {
-        //     methodName: fc.methodName,
-        //     args: fc.args,
-        //     gas: getGas(fc.gas).toNumber().toFixed(),
-        //     deposit: utils.format.parseNearAmount(fc.amount || "0")!,
-        //   },
-        // };
         await account.functionCall({
           contractId: transaction.receiverId,
           methodName: fc.methodName,
@@ -695,43 +684,8 @@ export const executeMultipleTransactions = async (
           ),
           gas: new BN(getGas(fc.gas).toNumber().toFixed()),
         });
-        // }),
       });
     });
-
-    // wstransactions.forEach(async tx => {
-    //   const serializedTx = utils.serialize.serialize(Transactions.SCHEMA, tx);
-    //   console.log("serializedTx", serializedTx);
-    //   const serializedTxHash = new Uint8Array(
-    //     sha256.sha256.array(serializedTx)
-    //   );
-    //   const signature = keyPair.sign(serializedTxHash);
-    //   const signedTransaction = new Transactions.SignedTransaction({
-    //     tx,
-    //     signature: new Transactions.Signature({
-    //       keyType: publicKey.keyType,
-    //       data: signature.signature,
-    //     }),
-    //   });
-
-    //   const signedSerializedTx = signedTransaction.encode();
-    //   const result = await provider.sendJsonRpc("broadcast_tx_commit", [
-    //     Buffer.from(signedSerializedTx).toString("base64"),
-    //   ]);
-    //   console.log("result============", result);
-    // });
-
-    // return (await wallet.wallet())
-    //   .signAndSendTransactions({
-    //     transactions: wstransactions,
-    //   })
-    //   .then(res => {
-    //     if (!res) return;
-
-    // const transactionHashes = result?.map(r => r.transaction.hash);
-    // const parsedTransactionHashes = transactionHashes?.join(",");
-    //   })
-    //   .catch((e: Error) => {});
   } catch (error) {
     console.log("ERROR======", error);
   }

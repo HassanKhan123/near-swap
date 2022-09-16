@@ -154,6 +154,7 @@ const App = () => {
           </option>
         ))}
       </select>
+      <input placeholder="Token out amount" value={tokenOutAmount} />
 
       <button onClick={handleSwap}>Swap</button>
     </div>

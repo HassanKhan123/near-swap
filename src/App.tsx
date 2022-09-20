@@ -51,7 +51,23 @@ const App = () => {
       const globalWhitelist = await getGlobalTokens();
       const userTokens = await getUserTokens();
       console.log("userTokens", userTokens);
-      setFromTokens([...fromTokens, ...userTokens]);
+      if (!userTokens.length) {
+        setFromTokens([
+          {
+            id: "wrap.near",
+            name: "Near",
+            symbol: "NEAR",
+
+            contractName: "wrap.near",
+            decimals: 24,
+            onRef: true,
+            onTri: true,
+            balance: Number(nearBalance) / 10 ** 24,
+          },
+        ]);
+      } else {
+        setFromTokens([...fromTokens, ...userTokens]);
+      }
       setToTokens(globalWhitelist);
     })();
   }, []);
@@ -134,6 +150,7 @@ const App = () => {
 
       <label>From Token</label>
       <select onChange={handleSelectTokenOut}>
+        <option>Select</option>
         {fromTokens.map(tk => (
           <option value={tk.contractName} key={tk.contractName}>
             {tk.name} {tk.balance}

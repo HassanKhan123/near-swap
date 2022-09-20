@@ -43,12 +43,14 @@ import {
   RefFiViewFunctionOptions,
   StablePool,
   STABLE_LP_TOKEN_DECIMALS,
+  StorageDepositActionOptions,
   STORAGE_PER_TOKEN,
   SwapOptions,
   SwapOptions1,
   SWAP_MODE,
   TokenMetadata,
   Transaction,
+  WithdrawActionOptions,
 } from "./near";
 
 import getConfig, {
@@ -61,7 +63,6 @@ import getConfig, {
 import SpecialWallet from "./SpecialWallet";
 import BigNumber from "bignumber.js";
 import { AccountView } from "near-api-js/lib/providers/provider";
-import { useDepositableBalance } from "./hooks";
 
 const config = getConfig();
 
@@ -184,20 +185,21 @@ const getTokensMetaData = async (token: string, account: any, mode = "") => {
 
     contractName: token,
     decimals: tokenInfo.decimals,
+    onRef: true,
+    onTri: true,
   };
   if (mode === "user_holdings") {
-    let balance = await account.viewFunction(token, "ft_balance_of", {
-      account_id: ACCOUNT_ID,
-    });
-
     if (token === WRAP_NEAR_CONTRACT_ID) {
       getAccountNearBalance(ACCOUNT_ID).then(
         ({ available }: any) =>
           (obj.balance = Number(available) / 10 ** tokenInfo.decimals)
       );
+    } else {
+      let balance = await account.viewFunction(token, "ft_balance_of", {
+        account_id: ACCOUNT_ID,
+      });
+      obj.balance = balance / 10 ** tokenInfo.decimals;
     }
-
-    obj.balance = balance / 10 ** tokenInfo.decimals;
   }
 
   return obj;
@@ -241,15 +243,6 @@ export const swap = async ({
   slippageTolerance,
   amountIn,
 }: SwapOptions1) => {
-  console.log(
-    "swap",
-    useNearBalance,
-    tokenIn,
-    tokenOut,
-    swapsToDo,
-    slippageTolerance,
-    amountIn
-  );
   if (swapsToDo) {
     if (useNearBalance) {
       await instantSwap({
@@ -646,7 +639,7 @@ SwapOptions1) => {
       scientificNotationToString(bigEstimate.toString())
     );
 
-    transactions.push(nearWithdrawTransaction(minAmountOut));
+    // transactions.push(nearWithdrawTransaction(minAmountOut));
   }
 
   if (tokenIn.id === WRAP_NEAR_CONTRACT_ID) {
@@ -662,6 +655,15 @@ SwapOptions1) => {
   return executeMultipleTransactions(transactions);
 };
 
+// NEAR
+// $3.91
+// 11.96539 NEAR
+// ≈ $46.78 USD
+// Wrapped NEAR fungible token
+// $3.91
+// 0.0009 wNEAR
+// $0
+
 export const executeMultipleTransactions = async (
   transactions: Transaction[],
   callbackUrl?: string
@@ -675,15 +677,19 @@ export const executeMultipleTransactions = async (
 
     transactions.forEach(async transaction => {
       transaction.functionCalls.map(async fc => {
-        await account.functionCall({
-          contractId: transaction.receiverId,
-          methodName: fc.methodName,
-          args: fc.args,
-          attachedDeposit: new BN(
-            utils.format.parseNearAmount(fc.amount || "0")
-          ),
-          gas: new BN(getGas(fc.gas).toNumber().toFixed()),
-        });
+        try {
+          await account.functionCall({
+            contractId: transaction.receiverId,
+            methodName: fc.methodName,
+            args: fc.args,
+            attachedDeposit: new BN(
+              utils.format.parseNearAmount(fc.amount || "0")
+            ),
+            gas: new BN(getGas(fc.gas).toNumber().toFixed()),
+          });
+        } catch (error) {
+          console.log("err========", error.message);
+        }
       });
     });
   } catch (error) {
@@ -2702,3 +2708,83 @@ export const getAccountNearBalance = async (accountId: string) => {
     })
     .then(data => ({ available: data.amount }));
 };
+
+export const unwrapNear = async (amount: string) => {
+  const transactions: Transaction[] = [];
+
+  const balance = await ftGetStorageBalance(WRAP_NEAR_CONTRACT_ID);
+
+  if (!balance || balance.total === "0") {
+    transactions.push({
+      receiverId: WRAP_NEAR_CONTRACT_ID,
+      functionCalls: [
+        {
+          methodName: "storage_deposit",
+          args: {},
+          gas: "30000000000000",
+          amount: NEW_ACCOUNT_STORAGE_COST,
+        },
+      ],
+    });
+  }
+
+  transactions.push({
+    receiverId: REF_FI_CONTRACT_ID,
+    functionCalls: [
+      withdrawAction({
+        tokenId: WRAP_NEAR_CONTRACT_ID,
+        // amount: utils.format.parseNearAmount(amount),
+        amount: toNonDivisibleNumber(24, amount),
+      }),
+    ],
+  });
+
+  transactions.push({
+    receiverId: WRAP_NEAR_CONTRACT_ID,
+    functionCalls: [
+      {
+        methodName: "near_withdraw",
+        args: {
+          // amount: utils.format.parseNearAmount(amount),
+          amount: toNonDivisibleNumber(24, amount),
+        },
+        amount: ONE_YOCTO_NEAR,
+      },
+    ],
+  });
+
+  const needDeposit = await checkTokenNeedsStorageDeposit();
+  if (needDeposit) {
+    transactions.unshift({
+      receiverId: REF_FI_CONTRACT_ID,
+      functionCalls: [storageDepositAction({ amount: needDeposit })],
+    });
+  }
+
+  return executeMultipleTransactions(transactions);
+};
+
+export const withdrawAction = ({
+  tokenId,
+  amount,
+  unregister = false,
+  singleTx,
+}: WithdrawActionOptions) => ({
+  methodName: "withdraw",
+  args: { token_id: tokenId, amount, unregister },
+  gas: singleTx ? "60000000000000" : "55000000000000",
+  amount: ONE_YOCTO_NEAR,
+});
+
+export const storageDepositAction = ({
+  accountId = ACCOUNT_ID,
+  registrationOnly = false,
+  amount,
+}: StorageDepositActionOptions): RefFiFunctionCallOptions => ({
+  methodName: "storage_deposit",
+  args: {
+    account_id: accountId,
+    registration_only: registrationOnly,
+  },
+  amount,
+});

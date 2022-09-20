@@ -312,6 +312,19 @@ export interface PoolRPCView {
   tokens_meta_data?: TokenMetadata[];
 }
 
+export interface StorageDepositActionOptions {
+  accountId?: string;
+  registrationOnly?: boolean;
+  amount: string;
+}
+
+export interface WithdrawActionOptions {
+  tokenId: string;
+  amount: string;
+  unregister?: boolean;
+  singleTx?: boolean;
+}
+
 export const getStablePoolKey = (id: string) => `STABLE_POOL_VALUE_${id}`;
 export const getStablePoolInfoKey = (id: string) =>
   `REF_FI_STABLE_Pool_INFO_VALUE_${id}`;

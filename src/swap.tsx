@@ -14,6 +14,7 @@ import {
   percentLess,
   POOL_TOKEN_REFRESH_INTERVAL,
   swap,
+  unwrapNear,
 } from "./utils";
 
 export const useSwap = ({
@@ -26,7 +27,7 @@ export const useSwap = ({
   reEstimateTrigger,
   supportLedger,
 }: SwapOptions) => {
-  console.log({ tokenIn, tokenInAmount, tokenOut });
+  console.log("TOKEN=========", tokenIn, tokenOut);
   const [pool, setPool] = useState<Pool>();
   const [canSwap, setCanSwap] = useState<boolean>();
   const [tokenOutAmount, setTokenOutAmount] = useState<string>("");
@@ -126,7 +127,11 @@ export const useSwap = ({
       amountIn: tokenInAmount,
       tokenOut,
       useNearBalance,
-    }).catch(setSwapError);
+    })
+      .then(() => {
+        unwrapNear(tokenOutAmount);
+      })
+      .catch(setSwapError);
   };
 
   return {

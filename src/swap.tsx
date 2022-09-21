@@ -36,12 +36,9 @@ export const useSwap = ({
 
   const [avgFee, setAvgFee] = useState<number>(0);
 
-  const [count, setCount] = useState<number>(0);
-
   const minAmountOut = tokenOutAmount
     ? percentLess(slippageTolerance, tokenOutAmount)
     : null;
-  const refreshTime = Number(POOL_TOKEN_REFRESH_INTERVAL) * 1000;
 
   useEffect(() => {
     getEstimate();

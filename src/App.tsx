@@ -2,22 +2,13 @@ import React, { useEffect, useState } from "react";
 
 import {
   ftGetBalance,
-  ftGetStorageBalance,
   getGlobalTokens,
   getUserTokens,
-  refFiViewFunction,
   toReadableNumber,
-  wrapNear,
   WRAP_NEAR_CONTRACT_ID,
 } from "./utils";
 import "./App.css";
-import {
-  RefFiFunctionCallOptions,
-  SWAP_MODE,
-  TokenMetadata,
-  Transaction,
-} from "./near";
-import { ACCOUNT_ID, STORAGE_TO_REGISTER_WITH_MFT } from "./config";
+import { SWAP_MODE, TokenMetadata } from "./near";
 import { useSwap } from "./swap";
 import { useDepositableBalance } from "./hooks";
 
@@ -34,8 +25,6 @@ const App = () => {
   const [slippageToleranceNormal, setSlippageToleranceNormal] =
     useState<number>(0.5);
 
-  const [slippageToleranceStable, setSlippageToleranceStable] =
-    useState<number>(0.5);
   const [tokenInAmount, setTokenInAmount] = useState<string>("1");
   const [toTokens, setToTokens] = useState([]);
   const [fromTokens, setFromTokens] = useState([]);
@@ -126,7 +115,6 @@ const App = () => {
 
   const handleSwap = async () => {
     console.log("handleSwap");
-    // await wrapNear(tokenInAmount);
     makeSwap(useNearBalance);
   };
 
@@ -138,7 +126,6 @@ const App = () => {
   };
 
   const handleSelectTokenOut = (e: any) => {
-    // console.log(e.target.value, "ddddddddddddddddddd");
     let token = fromTokens.find(tk => tk.id === e.target.value);
     console.log(token);
     setTokenIn(token);
